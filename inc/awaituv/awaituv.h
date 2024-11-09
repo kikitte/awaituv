@@ -16,7 +16,7 @@ namespace awaituv
 {
 
 // libuv's uv_buf_init doesn't take ssize_t. Rather than putting casts everywhere, make an overload.
-uv_buf_t uv_buf_init(char* base, ssize_t len)
+inline uv_buf_t uv_buf_init(char* base, ssize_t len)
 {
   return ::uv_buf_init(base, static_cast<unsigned int>(len));
 }
@@ -1288,14 +1288,10 @@ inline auto& uv_timer_start(awaitable_state<int>& awaitable, uv_timer_t* timer, 
   return awaitable;
 }
 
-inline awaitable_t<int> uv_timer_start(uv_loop_t*loop, uint64_t timeout)
+inline awaitable_t<int> uv_timer_start(uv_timer_t* timer, uint64_t timeout)
 {
   awaitable_state<int> state;
-  uv_timer_t           timer;
-  uv_timer_init(loop, &timer);
-  co_await uv_timer_start(state, &timer, timeout);
-  co_await uv_close(&timer);
-  co_return state._value;
+  co_return co_await uv_timer_start(state, timer, timeout);
 }
 
 inline auto& uv_tcp_connect(awaitable_state<int>&  awaitable,
