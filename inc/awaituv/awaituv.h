@@ -141,6 +141,16 @@ struct awaitable_t : public awaitable_common
     bool         _ready = false;
     awaitable_t* _awaitable = nullptr; // points to one and only awaitable_t
 
+    ~promise_type()
+    {
+      // the lifetime of promise object may be shorter than awaitable object,
+      // so reset the promise ptr to avoid used after free in the awaitable destructor.
+      if (_awaitable != nullptr)
+      {
+        _awaitable->_promise = nullptr;
+      }
+    }
+
     awaitable_t<T> get_return_object()
     {
       assert(_awaitable == nullptr);
@@ -209,11 +219,11 @@ struct awaitable_t : public awaitable_common
     set_value();
   }
 
-  awaitable_t(promise_type& promise) : _promise(promise)
+  awaitable_t(promise_type& promise) : _promise(&promise)
   {
-    _promise._awaitable = this;
-    _ready = _promise._ready;
-    _value = std::move(_promise._value);
+    _promise->_awaitable = this;
+    _ready = _promise->_ready;
+    _value = std::move(_promise->_value);
   }
   // move ctor, but nothing else
   awaitable_t& operator=(const awaitable_t&) = delete;
@@ -224,7 +234,7 @@ struct awaitable_t : public awaitable_common
     assert(f._callback == nullptr); // not awaited yet
     _ready = f._ready;
     _value = std::move(f._value);
-    _promise._awaitable = this;
+    _promise->_awaitable = this;
   }
 
   ~awaitable_t()
@@ -233,10 +243,13 @@ struct awaitable_t : public awaitable_common
     // fully awaited for, null out the awaitable back pointer when it goes
     // away. This can happen when creating multiple awaitables but only waiting
     // for one to complete (e.g. future_of_any).
-    _promise._awaitable = nullptr;
+    if (_promise)
+    {
+      _promise->_awaitable = nullptr;
+    }
   }
 
-  promise_type& _promise;
+  promise_type* _promise;
   T             _value = {};
 };
 
@@ -247,6 +260,16 @@ struct awaitable_t<void> : public awaitable_common
   {
     bool         _ready = false;
     awaitable_t* _awaitable = nullptr; // points to one and only awaitable_t
+
+    ~promise_type()
+    {
+      // the lifetime of promise object may be shorter than awaitable object,
+      // so reset the promise ptr to avoid used after free in the awaitable destructor.
+      if (_awaitable != nullptr)
+      {
+        _awaitable->_promise = nullptr;
+      }
+    }
 
     awaitable_t get_return_object()
     {
@@ -285,10 +308,10 @@ struct awaitable_t<void> : public awaitable_common
     set_value();
   }
 
-  awaitable_t(promise_type& promise) : _promise(promise)
+  awaitable_t(promise_type& promise) : _promise(&promise)
   {
-    _promise._awaitable = this;
-    _ready = _promise._ready;
+    _promise->_awaitable = this;
+    _ready = _promise->_ready;
   }
   // move ctor, but nothing else
   awaitable_t& operator=(const awaitable_t&) = delete;
@@ -298,7 +321,7 @@ struct awaitable_t<void> : public awaitable_common
   {
     assert(f._callback == nullptr); // not awaited yet
     _ready = f._ready;
-    _promise._awaitable = this;
+    _promise->_awaitable = this;
   }
 
   ~awaitable_t()
@@ -307,15 +330,18 @@ struct awaitable_t<void> : public awaitable_common
     // fully awaited for, null out the awaitable back pointer when it goes
     // away. This can happen when creating multiple awaitables but only waiting
     // for one to complete (e.g. future_of_any).
-    _promise._awaitable = nullptr;
+    if (_promise != nullptr)
+    {
+      _promise->_awaitable = nullptr;
+    }
   }
 
   std::coroutine_handle<promise_type> handle()
   {
-    return std::coroutine_handle<promise_type>::from_promise(_promise);
+    return std::coroutine_handle<promise_type>::from_promise(*_promise);
   }
 
-  promise_type& _promise;
+  promise_type* _promise;
 };
 
 // future_of_all is pretty trivial as we can just await on each argument
