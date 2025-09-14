@@ -20,7 +20,7 @@ option(ENABLE_TLSUV "Enable tlsuv support" ON)
 if (ENABLE_TLSUV)
     FetchContent_Declare(tlsuv
             GIT_REPOSITORY https://github.com/kikitte/tlsuv.git
-            GIT_TAG 5da612415bd82940ba38a4160fdc19fd6af46a8a
+            GIT_TAG bf9bdfb1b474ff340c0d1551625c717723465ee8
     )
     FetchContent_MakeAvailable(tlsuv)
 
